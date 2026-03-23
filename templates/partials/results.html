@@ -17,6 +17,53 @@
 </div>
 
 <script>window._hasResults = true; document.getElementById('export-btn').style.display='';</script>
+<script>
+function toggleRulesetWorkloads(button, href, targetId) {
+  var target = document.getElementById(targetId);
+  if (!target) return;
+
+  var expanded = button.getAttribute('aria-expanded') === 'true';
+  if (expanded) {
+    target.hidden = true;
+    button.setAttribute('aria-expanded', 'false');
+    button.textContent = 'Show Matching Workloads';
+    return;
+  }
+
+  target.hidden = false;
+  button.setAttribute('aria-expanded', 'true');
+  button.textContent = 'Hide Matching Workloads';
+
+  if (target.dataset.loaded === 'true') return;
+
+  htmx.ajax('GET', '/api/ruleset-workloads?href=' + encodeURIComponent(href), {
+    target: '#' + targetId,
+    swap: 'innerHTML'
+  }).then(function() {
+    target.dataset.loaded = 'true';
+  }).catch(function() {
+    button.setAttribute('aria-expanded', 'false');
+    button.textContent = 'Show Matching Workloads';
+  });
+}
+</script>
+
+<style>
+  .ruleset-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: .5rem;
+    flex-wrap: wrap;
+  }
+  .ruleset-header h2 {
+    margin: 0;
+  }
+  .ruleset-toggle {
+    white-space: nowrap;
+  }
+</style>
 
 {{if .Boundaries}}
 <div class="card">
@@ -74,17 +121,16 @@
 
 {{range .Rulesets}}
 <div class="card ruleset-card" data-name="{{.Name}}">
-  <h2>{{.Name}}</h2>
-  {{if .Scope}}<div class="ruleset-scope">Scope: {{.Scope}}</div>{{end}}
-  <div class="mt-2">
-    <button class="btn btn-secondary"
-            hx-get="/api/ruleset-workloads?href={{.Href | urlquery}}"
-            hx-target="#{{.ID}}-workloads"
-            hx-swap="innerHTML"
-            hx-trigger="click once">
+  <div class="ruleset-header">
+    <h2>{{.Name}}</h2>
+    <button class="btn btn-secondary ruleset-toggle"
+            type="button"
+            aria-expanded="false"
+            onclick="toggleRulesetWorkloads(this, '{{.Href}}', '{{.ID}}-workloads')">
       Show Matching Workloads
     </button>
   </div>
+  {{if .Scope}}<div class="ruleset-scope">Scope: {{.Scope}}</div>{{end}}
   <table>
     <thead>
       <tr>
@@ -138,7 +184,7 @@
       {{end}}
     </tbody>
   </table>
-  <div id="{{.ID}}-workloads"></div>
+  <div id="{{.ID}}-workloads" hidden></div>
 </div>
 {{end}}
 {{end}}
