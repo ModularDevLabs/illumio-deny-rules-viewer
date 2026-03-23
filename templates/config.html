@@ -1,0 +1,66 @@
+{{define "content"}}
+{{$d := .Data}}
+<h1>PCE Settings</h1>
+
+<div class="card">
+  <form method="POST" action="/config">
+    <div class="grid-2">
+      <div>
+        <label>PCE Host</label>
+        <input type="text" name="pce_host" value="{{$d.Cfg.PCEHost}}" placeholder="pce.example.com">
+      </div>
+      <div>
+        <label>PCE Port</label>
+        <input type="number" name="pce_port" value="{{$d.Cfg.PCEPort}}" placeholder="8443">
+      </div>
+      <div>
+        <label>Org ID</label>
+        <input type="number" name="pce_org_id" value="{{$d.Cfg.PCEOrgID}}" placeholder="1">
+      </div>
+      <div>
+        <label>TLS Verify</label>
+        <select name="pce_tls_verify">
+          <option value="true"  {{if $d.Cfg.PCETLSVerify}}selected{{end}}>Enabled (recommended)</option>
+          <option value="false" {{if not $d.Cfg.PCETLSVerify}}selected{{end}}>Disabled</option>
+        </select>
+      </div>
+      <div>
+        <label>API Key</label>
+        <input type="text" name="pce_api_key" value="{{$d.Cfg.PCEAPIKey}}" placeholder="api_key_...">
+      </div>
+      <div>
+        <label>API Secret</label>
+        <input type="password" name="pce_api_secret" placeholder="Leave blank to keep existing">
+      </div>
+    </div>
+    <div style="display:flex;gap:.75rem;align-items:center;margin-top:.5rem">
+      <button type="submit" class="btn btn-primary">Save Settings</button>
+      <button type="button" class="btn btn-secondary"
+              hx-get="/config/test"
+              hx-target="#test-result"
+              hx-swap="innerHTML"
+              hx-indicator="#test-spinner">
+        Test Connection
+      </button>
+      <span id="test-spinner" class="htmx-indicator">
+        <span class="spinner"></span>
+      </span>
+    </div>
+  </form>
+</div>
+
+<div id="test-result">
+  {{if $d.TestResult}}
+    {{if $d.TestResult.OK}}
+    <div class="alert alert-success">{{$d.TestResult.Message}}</div>
+    {{else}}
+    <div class="alert alert-danger">{{$d.TestResult.Message}}</div>
+    {{end}}
+  {{end}}
+</div>
+
+<style>
+  .htmx-indicator { display: none; }
+  .htmx-request .htmx-indicator { display: inline-flex; align-items: center; }
+</style>
+{{end}}

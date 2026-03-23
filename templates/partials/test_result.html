@@ -1,0 +1,7 @@
+{{define "test_result.html"}}
+{{if .OK}}
+<div class="alert alert-success">{{.Message}}</div>
+{{else}}
+<div class="alert alert-danger">{{.Message}}</div>
+{{end}}
+{{end}}

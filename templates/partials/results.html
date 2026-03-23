@@ -1,0 +1,135 @@
+{{define "results.html"}}
+{{if .Error}}
+<div class="alert alert-danger">
+  <strong>Error:</strong> {{.Error}}
+</div>
+{{else if and (not .Boundaries) (not .Rulesets)}}
+<div class="alert alert-info">No deny or drop rules were found in enforcement boundaries or rulesets.</div>
+{{else}}
+
+<div class="summary-bar">
+  <span><strong>{{len .Boundaries}}</strong> enforcement boundar{{if eq (len .Boundaries) 1}}y{{else}}ies{{end}}</span>
+  <span>&bull;</span>
+  <span><strong>{{len .Rulesets}}</strong> ruleset(s) with deny/drop rules</span>
+  <span>&bull;</span>
+  <span><strong>{{.Total}}</strong> total deny/drop rule(s)</span>
+  {{if .Elapsed}}<span>&bull;</span><span>fetched in {{.Elapsed}}</span>{{end}}
+</div>
+
+<script>window._hasResults = true; document.getElementById('export-btn').style.display='';</script>
+
+{{if .Boundaries}}
+<div class="card">
+  <h2>Enforcement Boundaries</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Action</th>
+        <th>Name</th>
+        <th>Sources</th>
+        <th>Destinations</th>
+        <th>Services</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Boundaries}}
+      <tr>
+        <td style="white-space:nowrap;color:var(--text-muted)">{{.Index}}</td>
+        <td style="white-space:nowrap"><span class="badge badge-danger">DENY</span></td>
+        <td>{{.Name}}</td>
+        <td>
+          {{range .Sources}}
+          {{if hasPrefix . "LG: "}}
+            <span class="tag tag-lg">{{.}}</span>
+          {{else if hasPrefix . "All"}}
+            <span class="tag" style="background:#fee2e2;color:#991b1b;border-color:rgba(153,27,27,.2)">{{.}}</span>
+          {{else}}
+            <span class="tag">{{.}}</span>
+          {{end}}
+          {{end}}
+        </td>
+        <td>
+          {{range .Destinations}}
+          {{if hasPrefix . "LG: "}}
+            <span class="tag tag-lg">{{.}}</span>
+          {{else if hasPrefix . "All"}}
+            <span class="tag" style="background:#fee2e2;color:#991b1b;border-color:rgba(153,27,27,.2)">{{.}}</span>
+          {{else}}
+            <span class="tag">{{.}}</span>
+          {{end}}
+          {{end}}
+        </td>
+        <td>
+          {{range .Services}}
+          <span class="tag tag-svc">{{.}}</span>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+
+{{range .Rulesets}}
+<div class="card ruleset-card" data-name="{{.Name}}">
+  <h2>{{.Name}}</h2>
+  {{if .Scope}}<div class="ruleset-scope">Scope: {{.Scope}}</div>{{end}}
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Action</th>
+        <th>Sources</th>
+        <th>Destinations</th>
+        <th>Services</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .DenyRules}}
+      <tr {{if .Disabled}}class="disabled-rule"{{end}}>
+        <td style="white-space:nowrap;color:var(--text-muted)">{{.Index}}</td>
+        <td style="white-space:nowrap">
+          {{if eq .Action "DENY"}}
+          <span class="badge badge-danger">DENY</span>
+          {{else}}
+          <span class="badge badge-warning">DROP</span>
+          {{end}}
+          {{if .Disabled}}<span class="badge badge-secondary" style="margin-left:.25rem">DISABLED</span>{{end}}
+        </td>
+        <td>
+          {{range .Sources}}
+          {{if hasPrefix . "LG: "}}
+            <span class="tag tag-lg">{{.}}</span>
+          {{else if hasPrefix . "All"}}
+            <span class="tag" style="background:#fee2e2;color:#991b1b;border-color:rgba(153,27,27,.2)">{{.}}</span>
+          {{else}}
+            <span class="tag">{{.}}</span>
+          {{end}}
+          {{end}}
+        </td>
+        <td>
+          {{range .Destinations}}
+          {{if hasPrefix . "LG: "}}
+            <span class="tag tag-lg">{{.}}</span>
+          {{else if hasPrefix . "All"}}
+            <span class="tag" style="background:#fee2e2;color:#991b1b;border-color:rgba(153,27,27,.2)">{{.}}</span>
+          {{else}}
+            <span class="tag">{{.}}</span>
+          {{end}}
+          {{end}}
+        </td>
+        <td>
+          {{range .Services}}
+          <span class="tag tag-svc">{{.}}</span>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+{{end}}
+{{end}}

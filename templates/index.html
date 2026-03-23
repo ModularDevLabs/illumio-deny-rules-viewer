@@ -1,0 +1,68 @@
+{{define "content"}}
+{{$d := .Data}}
+<h1>Deny Rule Viewer</h1>
+
+{{if not $d.PCEConfigured}}
+<div class="alert alert-warning">
+  PCE is not configured. <a href="/config">Go to Settings</a> to enter your PCE credentials.
+</div>
+{{end}}
+
+<div class="card">
+  <div class="toolbar">
+    <button class="btn btn-danger"
+            id="fetch-btn"
+            {{if not $d.PCEConfigured}}disabled{{end}}
+            hx-post="/api/fetch-rules"
+            hx-target="#results"
+            hx-swap="innerHTML"
+            hx-indicator="#spinner"
+            hx-on:htmx:before-request="document.getElementById('fetch-btn').setAttribute('disabled','true')"
+            hx-on:htmx:after-request="document.getElementById('fetch-btn').removeAttribute('disabled')">
+      Fetch Deny Rules
+    </button>
+
+    <span id="spinner" class="htmx-indicator">
+      <span class="spinner"></span>&nbsp;Fetching from PCE&hellip;
+    </span>
+
+    <span style="flex:1"></span>
+
+    <input type="text"
+           id="filter-input"
+           placeholder="Filter by ruleset name&hellip;"
+           style="width:240px;margin-bottom:0"
+           oninput="filterRulesets(this.value)">
+
+    <a id="export-btn" href="/api/export-csv" class="btn btn-secondary btn-sm" style="display:none">
+      &#8595; Export CSV
+    </a>
+  </div>
+
+  <p class="text-muted">
+    Fetches all rulesets and returns only rules with <strong>action = deny</strong> or <strong>drop</strong>.
+    Sources, destinations, and services are resolved to friendly names.
+  </p>
+</div>
+
+<div id="results"></div>
+
+<style>
+  .htmx-indicator { display: none; }
+  .htmx-request .htmx-indicator { display: inline-flex; align-items: center; gap: .4rem; color: var(--text-muted); font-size: .85rem; }
+  .htmx-request #fetch-btn { opacity: .55; cursor: not-allowed; }
+</style>
+
+<script>
+function filterRulesets(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('.ruleset-card').forEach(function(card) {
+    var name = (card.dataset.name || '').toLowerCase();
+    card.style.display = (!q || name.includes(q)) ? '' : 'none';
+  });
+  // Show/hide empty state
+  var exportBtn = document.getElementById('export-btn');
+  if (exportBtn) exportBtn.style.display = q ? 'none' : (window._hasResults ? '' : 'none');
+}
+</script>
+{{end}}

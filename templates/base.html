@@ -1,0 +1,251 @@
+{{define "base"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{block "title" .}}Illumio Deny Rule Viewer{{end}}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="/static/htmx.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:         #0d1f38;
+      --navy-mid:     #1a3354;
+      --navy-light:   #254a73;
+      --teal:         #0891b2;
+      --teal-bright:  #06b6d4;
+      --teal-glow:    rgba(8,145,178,.12);
+      --teal-subtle:  rgba(8,145,178,.08);
+      --surface:      #ffffff;
+      --surface-2:    #f7f9fc;
+      --surface-3:    #eef2f7;
+      --border:       #dde4ef;
+      --border-light: #edf1f8;
+      --text:         #1a2740;
+      --text-mid:     #4a5878;
+      --text-muted:   #8494af;
+      --success:      #059669;
+      --success-bg:   #ecfdf5;
+      --success-text: #064e3b;
+      --danger:       #dc2626;
+      --danger-bg:    #fef2f2;
+      --danger-text:  #7f1d1d;
+      --warning:      #d97706;
+      --warning-bg:   #fffbeb;
+      --warning-text: #78350f;
+      --info:         #0891b2;
+      --info-bg:      #ecfeff;
+      --info-text:    #164e63;
+      --radius:       8px;
+      --radius-sm:    5px;
+      --shadow:       0 2px 8px rgba(13,31,56,.08), 0 0 0 1px rgba(13,31,56,.04);
+      --transition:   150ms ease;
+    }
+
+    body {
+      font-family: 'IBM Plex Sans', -apple-system, sans-serif;
+      background: var(--surface-2);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: .9rem;
+      line-height: 1.5;
+    }
+
+    nav {
+      background: var(--navy);
+      color: #fff;
+      padding: 0 1.75rem;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 0;
+      box-shadow: 0 1px 0 rgba(255,255,255,.06), 0 2px 12px rgba(0,0,0,.25);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      font-size: .95rem;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -.01em;
+      margin-right: auto;
+      display: flex;
+      align-items: center;
+      gap: .55rem;
+      text-decoration: none;
+    }
+
+    .brand-dot {
+      width: 8px; height: 8px;
+      background: #ef4444;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #ef4444;
+      flex-shrink: 0;
+    }
+
+    nav a {
+      color: rgba(255,255,255,.6);
+      text-decoration: none;
+      font-size: .85rem;
+      font-weight: 500;
+      padding: 0 1rem;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      border-bottom: 2px solid transparent;
+      transition: color var(--transition), border-color var(--transition);
+    }
+    nav a:hover { color: #fff; border-bottom-color: var(--teal-bright); }
+
+    .container { max-width: 1100px; margin: 2rem auto; padding: 0 1.25rem; }
+
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border-light);
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    h1 {
+      font-size: 1.4rem; font-weight: 700; color: var(--navy);
+      letter-spacing: -.02em; margin-bottom: 1.1rem;
+    }
+    h2 {
+      font-size: 1rem; font-weight: 600; color: var(--navy);
+      letter-spacing: -.01em; margin-bottom: .6rem;
+      padding-left: .65rem; border-left: 3px solid #ef4444;
+    }
+    .ruleset-scope { font-size: .8rem; color: var(--text-muted); margin-bottom: .75rem; }
+
+    label {
+      display: block; font-size: .8rem; font-weight: 600;
+      letter-spacing: .02em; text-transform: uppercase;
+      margin-bottom: .3rem; color: var(--text-mid);
+    }
+    input[type=text], input[type=number], input[type=password], select {
+      width: 100%; padding: .5rem .75rem;
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      font-size: .875rem; font-family: inherit; color: var(--text);
+      background: var(--surface); margin-bottom: .9rem;
+      transition: border-color var(--transition), box-shadow var(--transition);
+      outline: none; -webkit-appearance: none;
+    }
+    input:focus, select:focus {
+      border-color: var(--teal);
+      box-shadow: 0 0 0 3px var(--teal-glow);
+    }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: .35rem;
+      padding: .48rem 1.1rem; border: 1px solid transparent;
+      border-radius: var(--radius-sm); cursor: pointer;
+      font-size: .875rem; font-family: inherit; font-weight: 600;
+      text-decoration: none;
+      transition: background var(--transition), box-shadow var(--transition), transform var(--transition);
+      white-space: nowrap; line-height: 1.4;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary   { background: var(--navy);    color: #fff; border-color: var(--navy); }
+    .btn-primary:hover { background: var(--navy-mid); border-color: var(--teal); box-shadow: 0 0 0 2px var(--teal-glow); }
+    .btn-danger    { background: var(--danger);  color: #fff; border-color: var(--danger); }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-secondary { background: var(--surface); color: var(--text-mid); border-color: var(--border); }
+    .btn-secondary:hover { background: var(--surface-2); color: var(--text); }
+    .btn-outline   { background: transparent; color: var(--teal); border-color: var(--teal); }
+    .btn-outline:hover { background: var(--teal-subtle); }
+    .btn-sm { padding: .3rem .7rem; font-size: .8rem; }
+    .btn[disabled] { opacity: .55; cursor: not-allowed; pointer-events: none; }
+
+    .alert {
+      padding: .8rem 1rem; border-radius: var(--radius-sm);
+      margin-bottom: 1rem; font-size: .875rem; border-left: 3px solid transparent;
+    }
+    .alert-success { background: var(--success-bg); color: var(--success-text); border-left-color: var(--success); }
+    .alert-danger  { background: var(--danger-bg);  color: var(--danger-text);  border-left-color: var(--danger); }
+    .alert-warning { background: var(--warning-bg); color: var(--warning-text); border-left-color: var(--warning); }
+    .alert-info    { background: var(--info-bg);    color: var(--info-text);    border-left-color: var(--info); }
+
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    th, td { text-align: left; padding: .55rem .8rem; border-bottom: 1px solid var(--border-light); vertical-align: top; }
+    th {
+      background: var(--surface-2); font-weight: 600; font-size: .75rem;
+      letter-spacing: .04em; text-transform: uppercase; color: var(--text-mid);
+      border-bottom: 2px solid #ef4444;
+    }
+    tbody tr:hover { background: rgba(239,68,68,.04); }
+    tbody tr:last-child td { border-bottom: none; }
+
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: .18rem .55rem; border-radius: 100px;
+      font-size: .72rem; font-weight: 700; letter-spacing: .03em; white-space: nowrap;
+    }
+    .badge-danger   { background: var(--danger-bg);   color: var(--danger-text); }
+    .badge-warning  { background: var(--warning-bg);  color: var(--warning-text); }
+    .badge-secondary { background: var(--surface-3); color: var(--text-mid); }
+
+    .tag {
+      display: inline-flex; align-items: center;
+      background: #e8f0fb; color: var(--navy-mid);
+      border-radius: 4px; padding: .18rem .5rem;
+      font-size: .77rem; font-weight: 500; margin: .1rem;
+      border: 1px solid rgba(26,51,84,.12);
+    }
+    .tag-ip   { background: #f0fdf4; color: #166534; border-color: rgba(22,101,52,.15); }
+    .tag-lg   { background: #faf5ff; color: #6b21a8; border-color: rgba(107,33,168,.15); }
+    .tag-svc  { background: #fff7ed; color: #c2410c; border-color: rgba(194,65,12,.15); }
+
+    .spinner {
+      display: inline-block; width: 1rem; height: 1rem;
+      border: 2px solid var(--border); border-top-color: var(--teal);
+      border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .toolbar { display: flex; align-items: center; gap: .75rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+    .toolbar input[type=text] { margin-bottom: 0; width: 260px; }
+
+    .summary-bar {
+      display: flex; align-items: center; gap: 1rem;
+      padding: .6rem .9rem; background: var(--surface-3);
+      border-radius: var(--radius-sm); margin-bottom: 1.25rem;
+      font-size: .82rem; color: var(--text-mid);
+    }
+    .summary-bar strong { color: var(--text); }
+
+    .disabled-rule { opacity: .6; font-style: italic; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem; }
+
+    .mt-1 { margin-top: .5rem; }
+    .mt-2 { margin-top: 1rem; }
+    .text-muted  { color: var(--text-muted); font-size: .85rem; }
+    .text-center { text-align: center; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/" class="brand">
+      <span class="brand-dot"></span>
+      Illumio Deny Rule Viewer
+    </a>
+    <a href="/">Rules</a>
+    <a href="/config">Settings</a>
+  </nav>
+  <div class="container">
+    {{if .Flash}}
+    <div class="alert alert-{{.FlashType}}">{{.Flash}}</div>
+    {{end}}
+    {{block "content" .}}{{end}}
+  </div>
+</body>
+</html>
+{{end}}
