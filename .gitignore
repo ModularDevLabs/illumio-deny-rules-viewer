@@ -1,0 +1,8 @@
+.env
+.env.local
+**/.env
+**/.env.local
+*.pem
+*.key
+*.crt
+*.p12
