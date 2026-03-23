@@ -76,6 +76,15 @@
 <div class="card ruleset-card" data-name="{{.Name}}">
   <h2>{{.Name}}</h2>
   {{if .Scope}}<div class="ruleset-scope">Scope: {{.Scope}}</div>{{end}}
+  <div class="mt-2">
+    <button class="btn btn-secondary"
+            hx-get="/api/ruleset-workloads?href={{.Href | urlquery}}"
+            hx-target="#{{.ID}}-workloads"
+            hx-swap="innerHTML"
+            hx-trigger="click once">
+      Show Matching Workloads
+    </button>
+  </div>
   <table>
     <thead>
       <tr>
@@ -129,6 +138,7 @@
       {{end}}
     </tbody>
   </table>
+  <div id="{{.ID}}-workloads"></div>
 </div>
 {{end}}
 {{end}}

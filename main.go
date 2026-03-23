@@ -67,6 +67,8 @@ type boundaryRow struct {
 }
 
 type rulesetResult struct {
+	ID        string
+	Href      string
 	Name      string
 	Scope     string
 	DenyRules []denyRuleRow
@@ -79,6 +81,19 @@ type denyRuleRow struct {
 	Destinations []string
 	Services     []string
 	Disabled     bool
+}
+
+type workloadRow struct {
+	Name   string
+	Labels []string
+}
+
+type rulesetWorkloadsData struct {
+	RulesetName string
+	Scope       string
+	Count       int
+	Workloads   []workloadRow
+	Error       string
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
@@ -99,6 +114,7 @@ func main() {
 	mux.HandleFunc("POST /config", configPostHandler(cfg))
 	mux.HandleFunc("GET /config/test", configTestHandler(cfg))
 	mux.HandleFunc("POST /api/fetch-rules", fetchRulesHandler(cfg))
+	mux.HandleFunc("GET /api/ruleset-workloads", rulesetWorkloadsHandler(cfg))
 	mux.HandleFunc("GET /api/export-csv", exportCSVHandler(cfg))
 
 	log.Printf("Deny Rule Viewer listening on http://localhost%s", *addr)
@@ -218,6 +234,49 @@ func exportCSVHandler(cfg *config.Config) http.HandlerFunc {
 	}
 }
 
+func rulesetWorkloadsHandler(cfg *config.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		href := strings.TrimSpace(r.URL.Query().Get("href"))
+		if href == "" {
+			renderPartial(w, "templates/partials/ruleset_workloads.html", &rulesetWorkloadsData{
+				Error: "Missing ruleset href",
+			})
+			return
+		}
+
+		rulesets, err := pce.ListRulesets(cfg)
+		if err != nil {
+			renderPartial(w, "templates/partials/ruleset_workloads.html", &rulesetWorkloadsData{
+				Error: "List rulesets failed: " + err.Error(),
+			})
+			return
+		}
+		var match *pce.Ruleset
+		for i := range rulesets {
+			if rulesets[i].Href == href {
+				match = &rulesets[i]
+				break
+			}
+		}
+		if match == nil {
+			renderPartial(w, "templates/partials/ruleset_workloads.html", &rulesetWorkloadsData{
+				Error: "Ruleset not found in active policy",
+			})
+			return
+		}
+
+		data, err := buildRulesetWorkloadsData(cfg, *match)
+		if err != nil {
+			data = &rulesetWorkloadsData{
+				RulesetName: match.Name,
+				Scope:       matchScopeDisplay(*match, cfg),
+				Error:       err.Error(),
+			}
+		}
+		renderPartial(w, "templates/partials/ruleset_workloads.html", data)
+	}
+}
+
 // ── Business logic ────────────────────────────────────────────────────────────
 
 func buildResultsData(cfg *config.Config) (*resultsData, error) {
@@ -330,6 +389,8 @@ func buildResultsData(cfg *config.Config) (*resultsData, error) {
 		existing := rsByCanonical[key]
 		if existing == nil {
 			rsByCanonical[key] = &rulesetResult{
+				ID:        fmt.Sprintf("ruleset-%d", len(rsByCanonical)+1),
+				Href:      rs.Href,
 				Name:      rs.Name,
 				Scope:     formatScopes(rs.Scopes, labelMap, groupMap),
 				DenyRules: append([]denyRuleRow(nil), rows...),
@@ -357,6 +418,79 @@ func buildResultsData(cfg *config.Config) (*resultsData, error) {
 		Boundaries: boundaryRows,
 		Rulesets:   rsResults,
 		Total:      total,
+	}, nil
+}
+
+func buildRulesetWorkloadsData(cfg *config.Config, rs pce.Ruleset) (*rulesetWorkloadsData, error) {
+	type lr[T any] struct {
+		v   T
+		err error
+	}
+	lCh := make(chan lr[[]pce.Label], 1)
+	gCh := make(chan lr[[]pce.LabelGroup], 1)
+	wCh := make(chan lr[[]pce.Workload], 1)
+
+	go func() { v, e := pce.FetchLabels(cfg, false); lCh <- lr[[]pce.Label]{v, e} }()
+	go func() { v, e := pce.FetchLabelGroups(cfg, false); gCh <- lr[[]pce.LabelGroup]{v, e} }()
+	go func() { v, e := pce.FetchWorkloads(cfg, false); wCh <- lr[[]pce.Workload]{v, e} }()
+
+	lRes, gRes, wRes := <-lCh, <-gCh, <-wCh
+	for _, pair := range []struct {
+		name string
+		err  error
+	}{
+		{"labels", lRes.err},
+		{"label groups", gRes.err},
+		{"workloads", wRes.err},
+	} {
+		if pair.err != nil {
+			return nil, fmt.Errorf("fetch %s: %w", pair.name, pair.err)
+		}
+	}
+
+	labelMap := make(map[string]string, len(lRes.v))
+	for _, l := range lRes.v {
+		labelMap[l.Href] = l.Key + "=" + l.Value
+	}
+	groupMap := make(map[string]string, len(gRes.v))
+	for _, g := range gRes.v {
+		groupMap[g.Href] = g.Name
+	}
+
+	matcher := newScopeMatcher(cfg)
+	rows := make([]workloadRow, 0)
+	for _, wl := range wRes.v {
+		if wl.Deleted || !matcher.matchesRulesetScope(rs.Scopes, wl) {
+			continue
+		}
+		labels := make([]string, 0, len(wl.Labels))
+		for _, l := range wl.Labels {
+			if name, ok := labelMap[l.Href]; ok {
+				labels = append(labels, name)
+			} else if l.Key != "" || l.Value != "" {
+				labels = append(labels, l.Key+"="+l.Value)
+			} else {
+				labels = append(labels, l.Href)
+			}
+		}
+		sort.Strings(labels)
+		name := wl.Hostname
+		if name == "" {
+			name = wl.Name
+		}
+		if name == "" {
+			name = wl.Href
+		}
+		rows = append(rows, workloadRow{Name: name, Labels: labels})
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		return strings.ToLower(rows[i].Name) < strings.ToLower(rows[j].Name)
+	})
+	return &rulesetWorkloadsData{
+		RulesetName: rs.Name,
+		Scope:       formatScopes(rs.Scopes, labelMap, groupMap),
+		Count:       len(rows),
+		Workloads:   rows,
 	}, nil
 }
 
@@ -637,4 +771,128 @@ func denyRuleKey(row denyRuleRow) string {
 		strings.Join(row.Services, "\x1f"),
 		strconv.FormatBool(row.Disabled),
 	}, "\x1e")
+}
+
+func matchScopeDisplay(rs pce.Ruleset, cfg *config.Config) string {
+	labels, err := pce.FetchLabels(cfg, false)
+	if err != nil {
+		return ""
+	}
+	groups, err := pce.FetchLabelGroups(cfg, false)
+	if err != nil {
+		return ""
+	}
+	labelMap := make(map[string]string, len(labels))
+	for _, l := range labels {
+		labelMap[l.Href] = l.Key + "=" + l.Value
+	}
+	groupMap := make(map[string]string, len(groups))
+	for _, g := range groups {
+		groupMap[g.Href] = g.Name
+	}
+	return formatScopes(rs.Scopes, labelMap, groupMap)
+}
+
+type scopeMatcher struct {
+	cfg           *config.Config
+	labelGroupSet map[string]map[string]struct{}
+}
+
+func newScopeMatcher(cfg *config.Config) *scopeMatcher {
+	return &scopeMatcher{
+		cfg:           cfg,
+		labelGroupSet: map[string]map[string]struct{}{},
+	}
+}
+
+func (m *scopeMatcher) matchesRulesetScope(scopes [][]pce.ScopeActor, wl pce.Workload) bool {
+	if len(scopes) == 0 {
+		return true
+	}
+	for _, row := range scopes {
+		if m.matchesScopeRow(row, wl) {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *scopeMatcher) matchesScopeRow(row []pce.ScopeActor, wl pce.Workload) bool {
+	for _, actor := range row {
+		if !m.matchesActor(actor, wl) {
+			return false
+		}
+	}
+	return true
+}
+
+func (m *scopeMatcher) matchesActor(actor pce.ScopeActor, wl pce.Workload) bool {
+	matched := false
+	switch {
+	case actor.Actors == "ams":
+		matched = true
+	case actor.Label != nil:
+		matched = workloadHasLabel(wl, actor.Label.Href)
+	case actor.LabelGroup != nil:
+		matched = m.workloadInLabelGroup(wl, actor.LabelGroup.Href)
+	case actor.Workload != nil:
+		matched = wl.Href == actor.Workload.Href
+	}
+	if actor.Exclusion {
+		return !matched
+	}
+	return matched
+}
+
+func (m *scopeMatcher) workloadInLabelGroup(wl pce.Workload, href string) bool {
+	labels, err := m.expandLabelGroup(href, map[string]bool{})
+	if err != nil {
+		log.Printf("WARN: expand label group %s: %v", href, err)
+		return false
+	}
+	for _, l := range wl.Labels {
+		if _, ok := labels[l.Href]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *scopeMatcher) expandLabelGroup(href string, seen map[string]bool) (map[string]struct{}, error) {
+	if labels, ok := m.labelGroupSet[href]; ok {
+		return labels, nil
+	}
+	if seen[href] {
+		return map[string]struct{}{}, nil
+	}
+	seen[href] = true
+
+	detail, err := pce.FetchLabelGroupDetail(m.cfg, href, false)
+	if err != nil {
+		return nil, err
+	}
+	labels := make(map[string]struct{}, len(detail.Labels))
+	for _, l := range detail.Labels {
+		labels[l.Href] = struct{}{}
+	}
+	for _, child := range detail.LabelGroups {
+		childLabels, err := m.expandLabelGroup(child.Href, seen)
+		if err != nil {
+			return nil, err
+		}
+		for href := range childLabels {
+			labels[href] = struct{}{}
+		}
+	}
+	m.labelGroupSet[href] = labels
+	return labels, nil
+}
+
+func workloadHasLabel(wl pce.Workload, href string) bool {
+	for _, l := range wl.Labels {
+		if l.Href == href {
+			return true
+		}
+	}
+	return false
 }

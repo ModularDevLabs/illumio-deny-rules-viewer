@@ -1,0 +1,38 @@
+{{define "ruleset_workloads.html"}}
+{{if .Error}}
+<div class="alert alert-danger mt-2">
+  <strong>Error:</strong> {{.Error}}
+</div>
+{{else}}
+<div class="card mt-2" style="background:var(--surface-2)">
+  <div class="summary-bar" style="margin-bottom:1rem">
+    <span><strong>{{.Count}}</strong> workload(s) match this scope</span>
+    {{if .Scope}}<span>&bull;</span><span>{{.Scope}}</span>{{end}}
+  </div>
+  {{if not .Workloads}}
+  <div class="alert alert-info">No active workloads match this ruleset scope.</div>
+  {{else}}
+  <table>
+    <thead>
+      <tr>
+        <th>Workload</th>
+        <th>Labels</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Workloads}}
+      <tr>
+        <td>{{.Name}}</td>
+        <td>
+          {{range .Labels}}
+          <span class="tag">{{.}}</span>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{end}}
+</div>
+{{end}}
+{{end}}
