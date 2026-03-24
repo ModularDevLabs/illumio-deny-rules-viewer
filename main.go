@@ -937,6 +937,17 @@ func denyRuleKey(row denyRuleRow) string {
 	}, "\x1e")
 }
 
+func denyRuleContentKey(row denyRuleRow) string {
+	return strings.Join([]string{
+		row.Action,
+		row.ScopeType,
+		strings.Join(row.Sources, "\x1f"),
+		strings.Join(row.Destinations, "\x1f"),
+		strings.Join(row.Services, "\x1f"),
+		strconv.FormatBool(row.Disabled),
+	}, "\x1e")
+}
+
 func isNoneOnly(values []string) bool {
 	return len(values) == 1 && values[0] == "(none)"
 }
@@ -947,10 +958,10 @@ func denyRuleSetsEqual(a, b []denyRuleRow) bool {
 	}
 	seen := make(map[string]int, len(a))
 	for _, row := range a {
-		seen[denyRuleKey(row)]++
+		seen[denyRuleContentKey(row)]++
 	}
 	for _, row := range b {
-		key := denyRuleKey(row)
+		key := denyRuleContentKey(row)
 		if seen[key] == 0 {
 			return false
 		}
