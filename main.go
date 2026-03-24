@@ -115,6 +115,7 @@ func main() {
 	mux.HandleFunc("GET /config", configGetHandler(cfg))
 	mux.HandleFunc("POST /config", configPostHandler(cfg))
 	mux.HandleFunc("POST /config/activate", configActivateHandler(cfg))
+	mux.HandleFunc("POST /config/delete", configDeleteHandler(cfg))
 	mux.HandleFunc("GET /config/test", configTestHandler(cfg))
 	mux.HandleFunc("POST /api/fetch-rules", fetchRulesHandler(cfg))
 	mux.HandleFunc("GET /api/ruleset-workloads", rulesetWorkloadsHandler(cfg))
@@ -194,6 +195,26 @@ func configActivateHandler(cfg *config.Config) http.HandlerFunc {
 		}
 		cfg.Reload()
 		redirectWithFlash(w, r, "/config?profile="+url.QueryEscape(name), "success", "Active profile updated")
+	}
+}
+
+func configDeleteHandler(cfg *config.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			redirectWithFlash(w, r, "/config", "danger", "Invalid form")
+			return
+		}
+		name := strings.TrimSpace(r.FormValue("profile_name"))
+		if name == "" {
+			redirectWithFlash(w, r, "/config", "danger", "Profile name is required")
+			return
+		}
+		if err := config.DeleteProfile(name); err != nil {
+			redirectWithFlash(w, r, "/config", "danger", "Delete failed: "+err.Error())
+			return
+		}
+		cfg.Reload()
+		redirectWithFlash(w, r, "/config", "success", "Profile deleted")
 	}
 }
 

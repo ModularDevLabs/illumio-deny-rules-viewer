@@ -26,6 +26,10 @@
             <button type="submit" class="btn btn-primary">Activate</button>
           </form>
           {{end}}
+          <form method="POST" action="/config/delete" onsubmit="return confirm('Delete profile {{.Name}}?');">
+            <input type="hidden" name="profile_name" value="{{.Name}}">
+            <button type="submit" class="btn btn-danger">Delete</button>
+          </form>
         </div>
       </div>
       {{end}}

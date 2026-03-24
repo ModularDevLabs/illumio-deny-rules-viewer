@@ -122,6 +122,33 @@ func ActivateProfile(name string) error {
 	return fmt.Errorf("profile %q not found", name)
 }
 
+func DeleteProfile(name string) error {
+	store, err := loadStore()
+	if err != nil {
+		return err
+	}
+	next := make([]Profile, 0, len(store.Profiles))
+	removed := false
+	for _, p := range store.Profiles {
+		if p.Name == name {
+			removed = true
+			continue
+		}
+		next = append(next, p)
+	}
+	if !removed {
+		return fmt.Errorf("profile %q not found", name)
+	}
+	store.Profiles = next
+	if store.ActiveProfile == name {
+		store.ActiveProfile = ""
+		if len(store.Profiles) > 0 {
+			store.ActiveProfile = store.Profiles[0].Name
+		}
+	}
+	return writeStore(store)
+}
+
 func loadStore() (*Store, error) {
 	if data, err := os.ReadFile(profilesPath); err == nil {
 		var store Store
