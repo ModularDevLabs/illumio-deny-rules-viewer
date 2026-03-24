@@ -79,7 +79,7 @@ type rulesetResult struct {
 type denyRuleRow struct {
 	Index        int
 	Action       string
-	Scope        string
+	ScopeType    string
 	Sources      []string
 	Destinations []string
 	Services     []string
@@ -277,7 +277,7 @@ func exportCSVHandler(cfg *config.Config) http.HandlerFunc {
 				_ = cw.Write([]string{
 					"Ruleset",
 					sanitizeCSVField(rs.Name),
-					sanitizeCSVField(rule.Scope),
+					sanitizeCSVField(rule.ScopeType),
 					fmt.Sprintf("%d", rule.Index),
 					sanitizeCSVField(rule.Action),
 					sanitizeCSVField(strings.Join(rule.Sources, "; ")),
@@ -426,10 +426,6 @@ func buildResultsData(cfg *config.Config) (*resultsData, error) {
 			rules = append(rules, denyRules...)
 		}
 		var rows []denyRuleRow
-		scopeText := formatScopes(rs.Scopes, labelMap, groupMap)
-		if scopeText == "" {
-			scopeText = "All Workloads"
-		}
 		for i, r := range rules {
 			if !pce.IsDenyRule(r) {
 				continue
@@ -437,7 +433,7 @@ func buildResultsData(cfg *config.Config) (*resultsData, error) {
 			rows = append(rows, denyRuleRow{
 				Index:        i + 1,
 				Action:       strings.ToUpper(r.Action),
-				Scope:        scopeText,
+				ScopeType:    ruleScopeType(r),
 				Sources:      resolveRuleConsumers(r, labelMap, groupMap, ipListMap),
 				Destinations: resolveActors(r.Providers, labelMap, groupMap, ipListMap),
 				Services:     resolveServices(r.IngressServices, svcMap),
@@ -897,7 +893,7 @@ func mergeDenyRuleRows(existing, incoming []denyRuleRow) []denyRuleRow {
 func denyRuleKey(row denyRuleRow) string {
 	return strings.Join([]string{
 		row.Action,
-		row.Scope,
+		row.ScopeType,
 		strings.Join(row.Sources, "\x1f"),
 		strings.Join(row.Destinations, "\x1f"),
 		strings.Join(row.Services, "\x1f"),
@@ -907,6 +903,13 @@ func denyRuleKey(row denyRuleRow) string {
 
 func isNoneOnly(values []string) bool {
 	return len(values) == 1 && values[0] == "(none)"
+}
+
+func ruleScopeType(r pce.Rule) string {
+	if r.UnscopedConsumers {
+		return "Extrascope"
+	}
+	return "Intrascope"
 }
 
 func matchScopeDisplay(rs pce.Ruleset, cfg *config.Config) string {
