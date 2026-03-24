@@ -41,8 +41,10 @@ type indexPageData struct {
 }
 
 type configPageData struct {
-	Cfg        *config.Config
-	TestResult *testResultData
+	Cfg             *config.Config
+	Profiles        []config.Profile
+	SelectedProfile config.Profile
+	TestResult      *testResultData
 }
 
 type testResultData struct {
@@ -112,6 +114,7 @@ func main() {
 	mux.HandleFunc("GET /{$}", indexHandler(cfg))
 	mux.HandleFunc("GET /config", configGetHandler(cfg))
 	mux.HandleFunc("POST /config", configPostHandler(cfg))
+	mux.HandleFunc("POST /config/activate", configActivateHandler(cfg))
 	mux.HandleFunc("GET /config/test", configTestHandler(cfg))
 	mux.HandleFunc("POST /api/fetch-rules", fetchRulesHandler(cfg))
 	mux.HandleFunc("GET /api/ruleset-workloads", rulesetWorkloadsHandler(cfg))
@@ -134,7 +137,11 @@ func indexHandler(cfg *config.Config) http.HandlerFunc {
 
 func configGetHandler(cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		renderPage(w, r, "templates/config.html", configPageData{Cfg: cfg})
+		renderPage(w, r, "templates/config.html", configPageData{
+			Cfg:             cfg,
+			Profiles:        cfg.Profiles,
+			SelectedProfile: cfg.SelectedProfile(r.URL.Query().Get("profile")),
+		})
 	}
 }
 
@@ -144,28 +151,56 @@ func configPostHandler(cfg *config.Config) http.HandlerFunc {
 			redirectWithFlash(w, r, "/config", "danger", "Invalid form")
 			return
 		}
-		fields := map[string]string{
-			"PCE_HOST":       r.FormValue("pce_host"),
-			"PCE_PORT":       r.FormValue("pce_port"),
-			"PCE_ORG_ID":     r.FormValue("pce_org_id"),
-			"PCE_API_KEY":    r.FormValue("pce_api_key"),
-			"PCE_TLS_VERIFY": r.FormValue("pce_tls_verify"),
+		selected := cfg.SelectedProfile(r.FormValue("profile_name"))
+		profile := config.Profile{
+			Name:         strings.TrimSpace(r.FormValue("profile_name")),
+			PCEHost:      strings.TrimSpace(r.FormValue("pce_host")),
+			PCEPort:      atoiDefault(r.FormValue("pce_port"), 443),
+			PCEOrgID:     atoiDefault(r.FormValue("pce_org_id"), 1),
+			PCEAPIKey:    strings.TrimSpace(r.FormValue("pce_api_key")),
+			PCEAPISecret: selected.PCEAPISecret,
+			PCETLSVerify: strings.TrimSpace(r.FormValue("pce_tls_verify")) != "false",
 		}
-		if s := r.FormValue("pce_api_secret"); s != "" {
-			fields["PCE_API_SECRET"] = s
+		if s := strings.TrimSpace(r.FormValue("pce_api_secret")); s != "" {
+			profile.PCEAPISecret = s
 		}
-		if err := writeEnvLocal(fields); err != nil {
+		if profile.Name == "" {
+			redirectWithFlash(w, r, "/config", "danger", "Profile name is required")
+			return
+		}
+		if err := config.SaveProfile(profile, true); err != nil {
 			redirectWithFlash(w, r, "/config", "danger", "Save failed: "+err.Error())
 			return
 		}
 		cfg.Reload()
-		redirectWithFlash(w, r, "/config", "success", "Configuration saved")
+		redirectWithFlash(w, r, "/config?profile="+url.QueryEscape(profile.Name), "success", "Profile saved and activated")
+	}
+}
+
+func configActivateHandler(cfg *config.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			redirectWithFlash(w, r, "/config", "danger", "Invalid form")
+			return
+		}
+		name := strings.TrimSpace(r.FormValue("profile_name"))
+		if name == "" {
+			redirectWithFlash(w, r, "/config", "danger", "Profile name is required")
+			return
+		}
+		if err := config.ActivateProfile(name); err != nil {
+			redirectWithFlash(w, r, "/config", "danger", "Activate failed: "+err.Error())
+			return
+		}
+		cfg.Reload()
+		redirectWithFlash(w, r, "/config?profile="+url.QueryEscape(name), "success", "Active profile updated")
 	}
 }
 
 func configTestHandler(cfg *config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		err := pce.TestConnection(cfg)
+		profile := cfg.SelectedProfile(r.URL.Query().Get("profile"))
+		err := pce.TestConnection(configForProfile(profile, cfg))
 		td := &testResultData{OK: err == nil, Message: "Connected successfully."}
 		if err != nil {
 			td.Message = err.Error()
@@ -726,7 +761,32 @@ func redirectWithFlash(w http.ResponseWriter, r *http.Request, basePath, flashTy
 	q := url.Values{}
 	q.Set("flash", flash)
 	q.Set("flash_type", flashType)
-	http.Redirect(w, r, basePath+"?"+q.Encode(), http.StatusFound)
+	sep := "?"
+	if strings.Contains(basePath, "?") {
+		sep = "&"
+	}
+	http.Redirect(w, r, basePath+sep+q.Encode(), http.StatusFound)
+}
+
+func configForProfile(profile config.Profile, current *config.Config) *config.Config {
+	return &config.Config{
+		ProfileName:   profile.Name,
+		Profiles:      current.Profiles,
+		ActiveProfile: current.ActiveProfile,
+		PCEHost:       profile.PCEHost,
+		PCEPort:       profile.PCEPort,
+		PCEOrgID:      profile.PCEOrgID,
+		PCEAPIKey:     profile.PCEAPIKey,
+		PCEAPISecret:  profile.PCEAPISecret,
+		PCETLSVerify:  profile.PCETLSVerify,
+	}
+}
+
+func atoiDefault(v string, fallback int) int {
+	if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil {
+		return n
+	}
+	return fallback
 }
 
 // ── .env.local helpers ────────────────────────────────────────────────────────

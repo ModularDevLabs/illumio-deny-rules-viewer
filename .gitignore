@@ -1,5 +1,6 @@
 .env
 .env.local
+.pce-profiles.json
 **/.env
 **/.env.local
 *.pem

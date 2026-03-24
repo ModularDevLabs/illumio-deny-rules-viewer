@@ -2,59 +2,96 @@
 {{$d := .Data}}
 <h1>PCE Settings</h1>
 
-<div class="card">
-  <form method="POST" action="/config">
-    <div class="grid-2">
-      <div>
-        <label>PCE Host</label>
-        <input type="text" name="pce_host" value="{{$d.Cfg.PCEHost}}" placeholder="pce.example.com">
+<div class="grid-2" style="align-items:start">
+  <div class="card">
+    <h2 style="margin-bottom:1rem">Saved Profiles</h2>
+    {{if not $d.Profiles}}
+    <div class="alert alert-info">No saved PCE profiles yet. Create one on the right.</div>
+    {{else}}
+    <div style="display:flex;flex-direction:column;gap:.75rem">
+      {{range $d.Profiles}}
+      <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;padding:.8rem;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2)">
+        <div>
+          <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+            <strong>{{.Name}}</strong>
+            {{if eq .Name $d.Cfg.ActiveProfile}}<span class="badge badge-secondary">ACTIVE</span>{{end}}
+          </div>
+          <div class="text-muted mt-1">{{.PCEHost}}:{{.PCEPort}} / org {{.PCEOrgID}}</div>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:flex-end">
+          <a class="btn btn-secondary" href="/config?profile={{.Name | urlquery}}">Edit</a>
+          {{if ne .Name $d.Cfg.ActiveProfile}}
+          <form method="POST" action="/config/activate">
+            <input type="hidden" name="profile_name" value="{{.Name}}">
+            <button type="submit" class="btn btn-primary">Activate</button>
+          </form>
+          {{end}}
+        </div>
       </div>
-      <div>
-        <label>PCE Port</label>
-        <input type="number" name="pce_port" value="{{$d.Cfg.PCEPort}}" placeholder="8443">
-      </div>
-      <div>
-        <label>Org ID</label>
-        <input type="number" name="pce_org_id" value="{{$d.Cfg.PCEOrgID}}" placeholder="1">
-      </div>
-      <div>
-        <label>TLS Verify</label>
-        <select name="pce_tls_verify">
-          <option value="true"  {{if $d.Cfg.PCETLSVerify}}selected{{end}}>Enabled (recommended)</option>
-          <option value="false" {{if not $d.Cfg.PCETLSVerify}}selected{{end}}>Disabled</option>
-        </select>
-      </div>
-      <div>
-        <label>API Key</label>
-        <input type="text" name="pce_api_key" value="{{$d.Cfg.PCEAPIKey}}" placeholder="api_key_...">
-      </div>
-      <div>
-        <label>API Secret</label>
-        <input type="password" name="pce_api_secret" placeholder="Leave blank to keep existing">
-      </div>
+      {{end}}
     </div>
-    <div style="display:flex;gap:.75rem;align-items:center;margin-top:.5rem">
-      <button type="submit" class="btn btn-primary">Save Settings</button>
-      <button type="button" class="btn btn-secondary"
-              hx-get="/config/test"
-              hx-target="#test-result"
-              hx-swap="innerHTML"
-              hx-indicator="#test-spinner">
-        Test Connection
-      </button>
-      <span id="test-spinner" class="htmx-indicator">
-        <span class="spinner"></span>
-      </span>
-    </div>
-  </form>
+    {{end}}
+  </div>
+
+  <div class="card">
+    <h2 style="margin-bottom:1rem">Edit Profile</h2>
+    <form method="POST" action="/config">
+      <div class="grid-2">
+        <div>
+          <label>Profile Name</label>
+          <input type="text" name="profile_name" value="{{$d.SelectedProfile.Name}}" placeholder="prod-west">
+        </div>
+        <div>
+          <label>PCE Host</label>
+          <input type="text" name="pce_host" value="{{$d.SelectedProfile.PCEHost}}" placeholder="pce.example.com">
+        </div>
+        <div>
+          <label>PCE Port</label>
+          <input type="number" name="pce_port" value="{{$d.SelectedProfile.PCEPort}}" placeholder="8443">
+        </div>
+        <div>
+          <label>Org ID</label>
+          <input type="number" name="pce_org_id" value="{{$d.SelectedProfile.PCEOrgID}}" placeholder="1">
+        </div>
+        <div>
+          <label>TLS Verify</label>
+          <select name="pce_tls_verify">
+            <option value="true"  {{if $d.SelectedProfile.PCETLSVerify}}selected{{end}}>Enabled (recommended)</option>
+            <option value="false" {{if not $d.SelectedProfile.PCETLSVerify}}selected{{end}}>Disabled</option>
+          </select>
+        </div>
+        <div>
+          <label>API Key</label>
+          <input type="text" name="pce_api_key" value="{{$d.SelectedProfile.PCEAPIKey}}" placeholder="api_...">
+        </div>
+        <div style="grid-column:1 / -1">
+          <label>API Secret</label>
+          <input type="password" name="pce_api_secret" value="" placeholder="Leave blank to keep existing">
+        </div>
+      </div>
+      <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;margin-top:.75rem">
+        <button type="submit" class="btn btn-primary">Save & Activate</button>
+        <button type="button" class="btn btn-secondary"
+                hx-get="/config/test?profile={{$d.SelectedProfile.Name | urlquery}}"
+                hx-target="#test-result"
+                hx-swap="innerHTML"
+                hx-indicator="#test-spinner">
+          Test Selected Profile
+        </button>
+        <span id="test-spinner" class="htmx-indicator">
+          <span class="spinner"></span>
+        </span>
+      </div>
+    </form>
+  </div>
 </div>
 
 <div id="test-result">
   {{if $d.TestResult}}
     {{if $d.TestResult.OK}}
-    <div class="alert alert-success">{{$d.TestResult.Message}}</div>
+    <div class="alert alert-success mt-2">{{$d.TestResult.Message}}</div>
     {{else}}
-    <div class="alert alert-danger">{{$d.TestResult.Message}}</div>
+    <div class="alert alert-danger mt-2">{{$d.TestResult.Message}}</div>
     {{end}}
   {{end}}
 </div>
