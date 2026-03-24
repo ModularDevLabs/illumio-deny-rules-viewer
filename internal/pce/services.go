@@ -19,6 +19,7 @@ type PCEService struct {
 type PCEServicePort struct {
 	Proto    int  `json:"proto"`
 	Port     *int `json:"port,omitempty"`
+	ToPort   *int `json:"to_port,omitempty"`
 	ICMPType *int `json:"icmp_type,omitempty"`
 	ICMPCode *int `json:"icmp_code,omitempty"`
 }

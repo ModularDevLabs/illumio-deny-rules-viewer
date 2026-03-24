@@ -323,7 +323,7 @@ func buildResultsData(cfg *config.Config) (*resultsData, error) {
 	}
 	svcMap := make(map[string]string, len(sRes.v))
 	for _, s := range sRes.v {
-		svcMap[s.Href] = s.Name
+		svcMap[s.Href] = formatNamedService(s)
 	}
 
 	// ── Enforcement Boundaries (primary deny rules) ───────────────────────
@@ -623,6 +623,46 @@ func resolveServices(services []pce.IngressService, svcMap map[string]string) []
 		}
 	}
 	return out
+}
+
+func formatNamedService(s pce.PCEService) string {
+	if len(s.ServicePorts) == 0 {
+		if s.Name != "" {
+			return s.Name
+		}
+		return s.Href
+	}
+	parts := make([]string, 0, len(s.ServicePorts))
+	for _, sp := range s.ServicePorts {
+		parts = append(parts, formatNamedServicePort(sp))
+	}
+	label := s.Name
+	if label == "" {
+		label = s.Href
+	}
+	return fmt.Sprintf("%s (%s)", label, strings.Join(parts, ", "))
+}
+
+func formatNamedServicePort(sp pce.PCEServicePort) string {
+	pName := protoStr(sp.Proto)
+	switch sp.Proto {
+	case 1, 58:
+		if sp.ICMPType != nil {
+			if sp.ICMPCode != nil {
+				return fmt.Sprintf("%s t=%d c=%d", pName, *sp.ICMPType, *sp.ICMPCode)
+			}
+			return fmt.Sprintf("%s t=%d", pName, *sp.ICMPType)
+		}
+		return pName
+	default:
+		if sp.Port == nil {
+			return pName
+		}
+		if sp.ToPort != nil && *sp.ToPort != *sp.Port {
+			return fmt.Sprintf("%s/%d-%d", pName, *sp.Port, *sp.ToPort)
+		}
+		return fmt.Sprintf("%s/%d", pName, *sp.Port)
+	}
 }
 
 func protoStr(proto int) string {
