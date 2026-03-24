@@ -2,6 +2,8 @@
 
 Small self-contained Go web UI for inspecting deny rules from an Illumio PCE.
 
+![Illumio Deny Rule Viewer](docs/IllumioDenyRuleViewer.png)
+
 It shows:
 - enforcement boundaries
 - deny rules inside rulesets
