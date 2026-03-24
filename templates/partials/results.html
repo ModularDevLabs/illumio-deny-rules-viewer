@@ -122,7 +122,10 @@ function toggleRulesetWorkloads(button, href, targetId) {
 {{range .Rulesets}}
 <div class="card ruleset-card" data-name="{{.Name}}">
   <div class="ruleset-header">
-    <h2>{{.Name}}</h2>
+    <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+      <h2>{{.Name}}</h2>
+      <span class="badge badge-secondary">{{.Policy}}</span>
+    </div>
     <button class="btn btn-secondary ruleset-toggle"
             type="button"
             aria-expanded="false"
@@ -136,6 +139,7 @@ function toggleRulesetWorkloads(button, href, targetId) {
       <tr>
         <th>#</th>
         <th>Action</th>
+        <th>Policy</th>
         <th>Scope Type</th>
         <th>Sources</th>
         <th>Destinations</th>
@@ -153,6 +157,9 @@ function toggleRulesetWorkloads(button, href, targetId) {
           <span class="badge badge-warning">DROP</span>
           {{end}}
           {{if .Disabled}}<span class="badge badge-secondary" style="margin-left:.25rem">DISABLED</span>{{end}}
+        </td>
+        <td>
+          <span class="tag">{{.Policy}}</span>
         </td>
         <td>
           <span class="tag">{{.ScopeType}}</span>

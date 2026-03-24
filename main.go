@@ -73,12 +73,14 @@ type rulesetResult struct {
 	Href      string
 	Name      string
 	Scope     string
+	Policy    string
 	DenyRules []denyRuleRow
 }
 
 type denyRuleRow struct {
 	Index        int
 	Action       string
+	Policy       string
 	ScopeType    string
 	Sources      []string
 	Destinations []string
@@ -440,6 +442,7 @@ func buildResultsData(cfg *config.Config) (*resultsData, error) {
 			rows = append(rows, denyRuleRow{
 				Index:        i + 1,
 				Action:       strings.ToUpper(r.Action),
+				Policy:       displayPolicyVersion(rulesetVersion(rs)),
 				ScopeType:    ruleScopeType(r),
 				Sources:      resolveRuleConsumers(r, labelMap, groupMap, ipListMap),
 				Destinations: resolveActors(r.Providers, labelMap, groupMap, ipListMap),
@@ -464,6 +467,7 @@ func buildResultsData(cfg *config.Config) (*resultsData, error) {
 					Href:      rs.Href,
 					Name:      rs.Name,
 					Scope:     formatScopes(rs.Scopes, labelMap, groupMap),
+					Policy:    displayPolicyVersion(version),
 					DenyRules: append([]denyRuleRow(nil), rows...),
 				},
 			}
@@ -915,6 +919,7 @@ func mergeDenyRuleRows(existing, incoming []denyRuleRow) []denyRuleRow {
 func denyRuleKey(row denyRuleRow) string {
 	return strings.Join([]string{
 		row.Action,
+		row.Policy,
 		row.ScopeType,
 		strings.Join(row.Sources, "\x1f"),
 		strings.Join(row.Destinations, "\x1f"),
@@ -949,6 +954,17 @@ func pceCanonicalHref(href string) string {
 	href = strings.Replace(href, "/sec_policy/draft/", "/sec_policy/{version}/", 1)
 	href = strings.Replace(href, "/sec_policy/active/", "/sec_policy/{version}/", 1)
 	return href
+}
+
+func displayPolicyVersion(version string) string {
+	switch version {
+	case "draft":
+		return "Draft"
+	case "active":
+		return "Active"
+	default:
+		return version
+	}
 }
 
 func matchScopeDisplay(rs pce.Ruleset, cfg *config.Config) string {
