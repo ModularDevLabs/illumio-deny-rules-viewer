@@ -4,15 +4,15 @@
   <strong>Error:</strong> {{.Error}}
 </div>
 {{else if and (not .Boundaries) (not .Rulesets)}}
-<div class="alert alert-info">No deny or drop rules were found in enforcement boundaries or rulesets.</div>
+<div class="alert alert-info">No deny rules were found in enforcement boundaries or rulesets.</div>
 {{else}}
 
 <div class="summary-bar">
   <span><strong>{{len .Boundaries}}</strong> enforcement boundar{{if eq (len .Boundaries) 1}}y{{else}}ies{{end}}</span>
   <span>&bull;</span>
-  <span><strong>{{len .Rulesets}}</strong> ruleset(s) with deny/drop rules</span>
+  <span><strong>{{len .Rulesets}}</strong> ruleset(s) with deny rules</span>
   <span>&bull;</span>
-  <span><strong>{{.Total}}</strong> total deny/drop rule(s)</span>
+  <span><strong>{{.Total}}</strong> total deny rule(s)</span>
   {{if .Elapsed}}<span>&bull;</span><span>fetched in {{.Elapsed}}</span>{{end}}
 </div>
 
