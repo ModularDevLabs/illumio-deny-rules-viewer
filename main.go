@@ -79,6 +79,7 @@ type rulesetResult struct {
 type denyRuleRow struct {
 	Index        int
 	Action       string
+	Scope        string
 	Sources      []string
 	Destinations []string
 	Services     []string
@@ -276,7 +277,7 @@ func exportCSVHandler(cfg *config.Config) http.HandlerFunc {
 				_ = cw.Write([]string{
 					"Ruleset",
 					sanitizeCSVField(rs.Name),
-					sanitizeCSVField(rs.Scope),
+					sanitizeCSVField(rule.Scope),
 					fmt.Sprintf("%d", rule.Index),
 					sanitizeCSVField(rule.Action),
 					sanitizeCSVField(strings.Join(rule.Sources, "; ")),
@@ -425,6 +426,10 @@ func buildResultsData(cfg *config.Config) (*resultsData, error) {
 			rules = append(rules, denyRules...)
 		}
 		var rows []denyRuleRow
+		scopeText := formatScopes(rs.Scopes, labelMap, groupMap)
+		if scopeText == "" {
+			scopeText = "All Workloads"
+		}
 		for i, r := range rules {
 			if !pce.IsDenyRule(r) {
 				continue
@@ -432,6 +437,7 @@ func buildResultsData(cfg *config.Config) (*resultsData, error) {
 			rows = append(rows, denyRuleRow{
 				Index:        i + 1,
 				Action:       strings.ToUpper(r.Action),
+				Scope:        scopeText,
 				Sources:      resolveRuleConsumers(r, labelMap, groupMap, ipListMap),
 				Destinations: resolveActors(r.Providers, labelMap, groupMap, ipListMap),
 				Services:     resolveServices(r.IngressServices, svcMap),
@@ -609,10 +615,14 @@ func resolveActors(actors []pce.ScopeActor, labelMap, groupMap, ipListMap map[st
 }
 
 func resolveRuleConsumers(r pce.Rule, labelMap, groupMap, ipListMap map[string]string) []string {
+	resolved := resolveActors(r.Consumers, labelMap, groupMap, ipListMap)
+	if len(r.Consumers) > 0 && !isNoneOnly(resolved) {
+		return resolved
+	}
 	if r.UnscopedConsumers {
 		return []string{"All Workloads"}
 	}
-	return resolveActors(r.Consumers, labelMap, groupMap, ipListMap)
+	return resolved
 }
 
 func namedHref(kind string, ref *pce.HrefRef) string {
@@ -887,11 +897,16 @@ func mergeDenyRuleRows(existing, incoming []denyRuleRow) []denyRuleRow {
 func denyRuleKey(row denyRuleRow) string {
 	return strings.Join([]string{
 		row.Action,
+		row.Scope,
 		strings.Join(row.Sources, "\x1f"),
 		strings.Join(row.Destinations, "\x1f"),
 		strings.Join(row.Services, "\x1f"),
 		strconv.FormatBool(row.Disabled),
 	}, "\x1e")
+}
+
+func isNoneOnly(values []string) bool {
+	return len(values) == 1 && values[0] == "(none)"
 }
 
 func matchScopeDisplay(rs pce.Ruleset, cfg *config.Config) string {

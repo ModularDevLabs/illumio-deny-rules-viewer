@@ -136,6 +136,7 @@ function toggleRulesetWorkloads(button, href, targetId) {
       <tr>
         <th>#</th>
         <th>Action</th>
+        <th>Scope</th>
         <th>Sources</th>
         <th>Destinations</th>
         <th>Services</th>
@@ -152,6 +153,9 @@ function toggleRulesetWorkloads(button, href, targetId) {
           <span class="badge badge-warning">DROP</span>
           {{end}}
           {{if .Disabled}}<span class="badge badge-secondary" style="margin-left:.25rem">DISABLED</span>{{end}}
+        </td>
+        <td>
+          <span class="tag">{{.Scope}}</span>
         </td>
         <td>
           {{range .Sources}}
