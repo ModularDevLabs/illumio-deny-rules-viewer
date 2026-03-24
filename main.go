@@ -481,9 +481,18 @@ func buildResultsData(cfg *config.Config) (*resultsData, error) {
 	rsResults := make([]rulesetResult, 0, len(rsByCanonical))
 	for _, versions := range rsByCanonical {
 		var chosen *rulesetResult
-		if draft := versions["draft"]; draft != nil && len(draft.result.DenyRules) > 0 {
+		draft := versions["draft"]
+		active := versions["active"]
+		switch {
+		case draft != nil && len(draft.result.DenyRules) > 0 && active != nil && len(active.result.DenyRules) > 0:
+			if denyRuleSetsEqual(draft.result.DenyRules, active.result.DenyRules) {
+				chosen = active.result
+			} else {
+				chosen = draft.result
+			}
+		case draft != nil && len(draft.result.DenyRules) > 0:
 			chosen = draft.result
-		} else if active := versions["active"]; active != nil && len(active.result.DenyRules) > 0 {
+		case active != nil && len(active.result.DenyRules) > 0:
 			chosen = active.result
 		}
 		if chosen != nil {
@@ -930,6 +939,29 @@ func denyRuleKey(row denyRuleRow) string {
 
 func isNoneOnly(values []string) bool {
 	return len(values) == 1 && values[0] == "(none)"
+}
+
+func denyRuleSetsEqual(a, b []denyRuleRow) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	seen := make(map[string]int, len(a))
+	for _, row := range a {
+		seen[denyRuleKey(row)]++
+	}
+	for _, row := range b {
+		key := denyRuleKey(row)
+		if seen[key] == 0 {
+			return false
+		}
+		seen[key]--
+	}
+	for _, count := range seen {
+		if count != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func ruleScopeType(r pce.Rule) string {
