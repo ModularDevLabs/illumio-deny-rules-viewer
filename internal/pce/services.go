@@ -42,9 +42,13 @@ func FetchServices(cfg *config.Config, force bool) ([]PCEService, error) {
 	if err != nil {
 		return nil, err
 	}
-	svcs, err := fetchAllPages[PCEService](c, c.OrgPath("sec_policy/"+policyVersion+"/services"))
-	if err != nil {
-		return nil, fmt.Errorf("fetch services: %w", err)
+	var svcs []PCEService
+	for _, version := range []string{activePolicyVersion, draftPolicyVersion} {
+		items, err := fetchAllPages[PCEService](c, c.OrgPath("sec_policy/"+version+"/services"))
+		if err != nil {
+			return nil, fmt.Errorf("fetch %s services: %w", version, err)
+		}
+		svcs = append(svcs, items...)
 	}
 	svcCache.services = svcs
 	svcCache.ts = time.Now()

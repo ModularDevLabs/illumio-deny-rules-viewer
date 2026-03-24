@@ -65,9 +65,13 @@ func FetchLabelGroups(cfg *config.Config, force bool) ([]LabelGroup, error) {
 	if err != nil {
 		return nil, err
 	}
-	groups, err := fetchAllPages[LabelGroup](c, c.OrgPath("sec_policy/"+policyVersion+"/label_groups"))
-	if err != nil {
-		return nil, fmt.Errorf("fetch label groups: %w", err)
+	var groups []LabelGroup
+	for _, version := range []string{activePolicyVersion, draftPolicyVersion} {
+		items, err := fetchAllPages[LabelGroup](c, c.OrgPath("sec_policy/"+version+"/label_groups"))
+		if err != nil {
+			return nil, fmt.Errorf("fetch %s label groups: %w", version, err)
+		}
+		groups = append(groups, items...)
 	}
 	labelCache.groups = groups
 	labelCache.groupTs = time.Now()

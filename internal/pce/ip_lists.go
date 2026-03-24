@@ -40,9 +40,13 @@ func FetchIPLists(cfg *config.Config, force bool) ([]IPList, error) {
 	if err != nil {
 		return nil, err
 	}
-	lists, err := fetchAllPages[IPList](c, c.OrgPath("sec_policy/"+policyVersion+"/ip_lists"))
-	if err != nil {
-		return nil, fmt.Errorf("fetch ip lists: %w", err)
+	var lists []IPList
+	for _, version := range []string{activePolicyVersion, draftPolicyVersion} {
+		items, err := fetchAllPages[IPList](c, c.OrgPath("sec_policy/"+version+"/ip_lists"))
+		if err != nil {
+			return nil, fmt.Errorf("fetch %s ip lists: %w", version, err)
+		}
+		lists = append(lists, items...)
 	}
 	ipListCache.data = lists
 	ipListCache.ts = time.Now()

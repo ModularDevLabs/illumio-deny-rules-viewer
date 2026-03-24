@@ -8,7 +8,10 @@ import (
 	"illumio/denyrules/internal/config"
 )
 
-const policyVersion = "active"
+const (
+	activePolicyVersion = "active"
+	draftPolicyVersion  = "draft"
+)
 
 // Ruleset represents a PCE rule set.
 type Ruleset struct {
@@ -39,19 +42,22 @@ type IngressService struct {
 	ICMPCode *int   `json:"icmp_code,omitempty"`
 }
 
-// ListRulesets returns all active rulesets.
+// ListRulesets returns draft and active rulesets.
 func ListRulesets(cfg *config.Config) ([]Ruleset, error) {
 	c, err := New(cfg)
 	if err != nil {
 		return nil, err
 	}
-
-	rs, err := fetchAllPages[Ruleset](c, c.OrgPath(fmt.Sprintf("sec_policy/%s/rule_sets", policyVersion)))
-	if err != nil {
-		return nil, fmt.Errorf("list %s rulesets: %w", policyVersion, err)
+	var out []Ruleset
+	for _, version := range []string{draftPolicyVersion, activePolicyVersion} {
+		rs, err := fetchAllPages[Ruleset](c, c.OrgPath(fmt.Sprintf("sec_policy/%s/rule_sets", version)))
+		if err != nil {
+			return nil, fmt.Errorf("list %s rulesets: %w", version, err)
+		}
+		log.Printf("rulesets fetched from %s (%d items)", version, len(rs))
+		out = append(out, rs...)
 	}
-	log.Printf("rulesets fetched from %s (%d items)", policyVersion, len(rs))
-	return rs, nil
+	return out, nil
 }
 
 // FetchRules returns all sec_rules for the given ruleset href.
@@ -111,10 +117,27 @@ func FetchEnforcementBoundaries(cfg *config.Config) ([]EnforcementBoundary, erro
 	if err != nil {
 		return nil, err
 	}
-	items, err := fetchAllPages[EnforcementBoundary](c, c.OrgPath(fmt.Sprintf("sec_policy/%s/enforcement_boundaries", policyVersion)))
+	items, err := fetchAllPages[EnforcementBoundary](c, c.OrgPath(fmt.Sprintf("sec_policy/%s/enforcement_boundaries", activePolicyVersion)))
 	if err != nil {
-		return nil, fmt.Errorf("fetch %s enforcement boundaries: %w", policyVersion, err)
+		return nil, fmt.Errorf("fetch %s enforcement boundaries: %w", activePolicyVersion, err)
 	}
-	log.Printf("enforcement boundaries fetched from %s (%d items)", policyVersion, len(items))
+	log.Printf("enforcement boundaries fetched from %s (%d items)", activePolicyVersion, len(items))
 	return items, nil
+}
+
+func canonicalPolicyHref(href string) string {
+	href = strings.Replace(href, "/sec_policy/draft/", "/sec_policy/{version}/", 1)
+	href = strings.Replace(href, "/sec_policy/active/", "/sec_policy/{version}/", 1)
+	return href
+}
+
+func policyHrefVersion(href string) string {
+	switch {
+	case strings.Contains(href, "/sec_policy/draft/"):
+		return draftPolicyVersion
+	case strings.Contains(href, "/sec_policy/active/"):
+		return activePolicyVersion
+	default:
+		return ""
+	}
 }

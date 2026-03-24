@@ -373,14 +373,17 @@ func buildResultsData(cfg *config.Config) (*resultsData, error) {
 	groupMap := make(map[string]string, len(gRes.v))
 	for _, g := range gRes.v {
 		groupMap[g.Href] = g.Name
+		groupMap[pceCanonicalHref(g.Href)] = g.Name
 	}
 	ipListMap := make(map[string]string, len(iRes.v))
 	for _, ip := range iRes.v {
 		ipListMap[ip.Href] = ip.Name
+		ipListMap[pceCanonicalHref(ip.Href)] = ip.Name
 	}
 	svcMap := make(map[string]string, len(sRes.v))
 	for _, s := range sRes.v {
 		svcMap[s.Href] = formatNamedService(s)
+		svcMap[pceCanonicalHref(s.Href)] = formatNamedService(s)
 	}
 
 	// ── Enforcement Boundaries (primary deny rules) ───────────────────────
@@ -408,7 +411,11 @@ func buildResultsData(cfg *config.Config) (*resultsData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list rulesets: %w", err)
 	}
-	rsByCanonical := make(map[string]*rulesetResult)
+	type versionedRulesetResult struct {
+		result  *rulesetResult
+		version string
+	}
+	rsByCanonical := make(map[string]map[string]*versionedRulesetResult)
 	for _, rs := range rulesets {
 		rules, err := pce.FetchRules(cfg, rs.Href)
 		if err != nil {
@@ -444,25 +451,40 @@ func buildResultsData(cfg *config.Config) (*resultsData, error) {
 			continue
 		}
 		key := canonicalRulesetKey(rs)
-		existing := rsByCanonical[key]
+		if rsByCanonical[key] == nil {
+			rsByCanonical[key] = make(map[string]*versionedRulesetResult, 2)
+		}
+		version := rulesetVersion(rs)
+		existing := rsByCanonical[key][version]
 		if existing == nil {
-			rsByCanonical[key] = &rulesetResult{
-				ID:        fmt.Sprintf("ruleset-%d", len(rsByCanonical)+1),
-				Href:      rs.Href,
-				Name:      rs.Name,
-				Scope:     formatScopes(rs.Scopes, labelMap, groupMap),
-				DenyRules: append([]denyRuleRow(nil), rows...),
+			rsByCanonical[key][version] = &versionedRulesetResult{
+				version: version,
+				result: &rulesetResult{
+					ID:        fmt.Sprintf("ruleset-%d", len(rsByCanonical)+1),
+					Href:      rs.Href,
+					Name:      rs.Name,
+					Scope:     formatScopes(rs.Scopes, labelMap, groupMap),
+					DenyRules: append([]denyRuleRow(nil), rows...),
+				},
 			}
 			continue
 		}
-		existing.DenyRules = mergeDenyRuleRows(existing.DenyRules, rows)
-		if existing.Scope == "" {
-			existing.Scope = formatScopes(rs.Scopes, labelMap, groupMap)
+		existing.result.DenyRules = mergeDenyRuleRows(existing.result.DenyRules, rows)
+		if existing.result.Scope == "" {
+			existing.result.Scope = formatScopes(rs.Scopes, labelMap, groupMap)
 		}
 	}
 	rsResults := make([]rulesetResult, 0, len(rsByCanonical))
-	for _, rs := range rsByCanonical {
-		rsResults = append(rsResults, *rs)
+	for _, versions := range rsByCanonical {
+		var chosen *rulesetResult
+		if draft := versions["draft"]; draft != nil && len(draft.result.DenyRules) > 0 {
+			chosen = draft.result
+		} else if active := versions["active"]; active != nil && len(active.result.DenyRules) > 0 {
+			chosen = active.result
+		}
+		if chosen != nil {
+			rsResults = append(rsResults, *chosen)
+		}
 	}
 	sort.Slice(rsResults, func(i, j int) bool {
 		return strings.ToLower(rsResults[i].Name) < strings.ToLower(rsResults[j].Name)
@@ -868,7 +890,7 @@ func canonicalRulesetKey(rs pce.Ruleset) string {
 	if rs.Href == "" {
 		return rs.Name + "|" + formatScopes(rs.Scopes, nil, nil)
 	}
-	return strings.Replace(strings.Replace(rs.Href, "/sec_policy/draft/", "/sec_policy/{version}/", 1), "/sec_policy/active/", "/sec_policy/{version}/", 1)
+	return pceCanonicalHref(rs.Href)
 }
 
 func mergeDenyRuleRows(existing, incoming []denyRuleRow) []denyRuleRow {
@@ -910,6 +932,23 @@ func ruleScopeType(r pce.Rule) string {
 		return "Extrascope"
 	}
 	return "Intrascope"
+}
+
+func rulesetVersion(rs pce.Ruleset) string {
+	switch {
+	case strings.Contains(rs.Href, "/sec_policy/draft/"):
+		return "draft"
+	case strings.Contains(rs.Href, "/sec_policy/active/"):
+		return "active"
+	default:
+		return ""
+	}
+}
+
+func pceCanonicalHref(href string) string {
+	href = strings.Replace(href, "/sec_policy/draft/", "/sec_policy/{version}/", 1)
+	href = strings.Replace(href, "/sec_policy/active/", "/sec_policy/{version}/", 1)
+	return href
 }
 
 func matchScopeDisplay(rs pce.Ruleset, cfg *config.Config) string {
